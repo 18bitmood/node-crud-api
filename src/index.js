@@ -53,23 +53,69 @@ const server = http.createServer((req, res) => {
   res.end(JSON.stringify({ message: "Route not found" }));
 });
 
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
-
-process.on("SIGINT", () => {
-  console.log("Server shutting down");
-
-  server.close(() => {
-    console.log("Server closed");
-    process.exit(0);
+// Only start the server if not being required by cluster.js
+if (!module.parent) {
+  server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
   });
 
-  setTimeout(() => {
-    console.log("Server shutdown timed out, forcing exit");
-    process.exit(1);
-  }, 3000);
-});
+  process.on("SIGINT", () => {
+    console.log("Server shutting down");
+
+    server.close(() => {
+      console.log("Server closed");
+      process.exit(0);
+    });
+
+    setTimeout(() => {
+      console.log("Server shutdown timed out, forcing exit");
+      process.exit(1);
+    }, 3000);
+  });
+}
+
+// Helpers
+
+function renderInvalidUUID(res) {
+  res.writeHead(400, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ message: "User ID is invalid (not uuid)" }));
+  return;
+}
+
+function renderUserNotFound(res) {
+  res.writeHead(404, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ message: "User not found" }));
+  return;
+}
+
+function renderInternalError(res, error) {
+  res.writeHead(500, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ message: "Internal Server Error", error: error.message }));
+  return;
+}
+
+function parseRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+
+    req.on('data', (chunk) => {
+      body += chunk.toString();
+    });
+
+    req.on('end', () => {
+      try {
+        const parsedBody = JSON.parse(body);
+        resolve(parsedBody);
+      } catch (error) {
+        reject(new Error('Invalid JSON'));
+      }
+    });
+
+    req.on('error', (error) => {
+      reject(error);
+    });
+  });
+}
 
 function handleGetAllUsers(req, res) {
   try {
@@ -115,7 +161,7 @@ async function handleCreateUser(req, res) {
   } catch (error) {
     renderInternalError(res, error);
   }
-} 
+}
 
 async function handleUpdateUser(req, res, userId) {
   try {
@@ -158,46 +204,14 @@ function handleDeleteUser(req, res, userId) {
   }
 }
 
-// Helpers
-function renderInvalidUUID(res) {
-  res.writeHead(400, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ message: "User ID is invalid (not uuid)" }));
-  return;
-}
-
-function renderUserNotFound(res) {
-  res.writeHead(404, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ message: "User not found" }));
-  return;
-}
-
-function renderInternalError(res, error) {
-  res.writeHead(500, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ message: "Internal Server Error", error: error.message }));
-  return;
-}
-
-function parseRequestBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-
-    req.on('data', (chunk) => {
-      body += chunk.toString();
+module.exports = {
+  server,
+  start: (port) => {
+    return new Promise((resolve) => {
+      server.listen(port, () => {
+        console.log(`Worker started on port ${port}`);
+        resolve();
+      });
     });
-
-    req.on('end', () => {
-      try {
-        const parsedBody = JSON.parse(body);
-        resolve(parsedBody);
-      } catch (error) {
-        reject(new Error('Invalid JSON'));
-      }
-    });
-
-    req.on('error', (error) => {
-      reject(error);
-    });
-  });
-}
-
-module.exports = server;
+  }
+};

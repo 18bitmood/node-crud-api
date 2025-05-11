@@ -8,6 +8,7 @@
     "start:dev": "nodemon src/index.js",
     "build": "webpack",
     "start:prod": "npm run build && node dist/index.js",
+    "start:multi": "node src/cluster.js",
     "lint": "eslint src/**/*.js --fix",
     "test": "jest",
     "seed": "node src/db/seeds/seed.js"
